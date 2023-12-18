@@ -1,0 +1,53 @@
+version: "3.3"
+
+services:
+
+  traefik:
+    image: "traefik:v2.10"
+    container_name: "traefik"
+    command:
+      #- "--log.level=DEBUG"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.obresolver.acme.tlschallenge=true"
+      #- "--certificatesresolvers.myresolver.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
+      - "--certificatesresolvers.obresolver.acme.email=bardic.knowledge@gmail.com"
+      - "--certificatesresolvers.obresolver.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - "./letsencrypt:/letsencrypt"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+  gotosocial:
+    image: superseriousbusiness/gotosocial:latest
+    container_name: gotosocial
+    user: 1000:1000
+    environment:
+      GTS_HOST: social.openbracket.ca
+      GTS_DB_TYPE: sqlite
+      GTS_DB_ADDRESS: /gotosocial/storage/sqlite.db
+      GTS_LETSENCRYPT_ENABLED: "false"
+      GTS_LETSENCRYPT_EMAIL_ADDRESS: ""
+      ## For reverse proxy setups:
+      # GTS_TRUSTED_PROXIES: "172.x.x.x"
+      ## Set the timezone of your server:
+      TZ: America/Halifax
+    ports:
+      - "443:8080"
+      ## For letsencrypt:
+      #- "80:80"
+      ## For reverse proxy setups:
+      #- "127.0.0.1:8080:8080"
+    volumes:
+      - ~/gotosocial/data:/gotosocial/storage
+    restart: "always"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.social.rule=Host(`social.openbracket.ca`)"
+      - "traefik.http.routers.social.entrypoints=websecure"
+      - "traefik.http.routers.social.tls.certresolver=obresolver"
+    
