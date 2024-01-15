@@ -12,7 +12,7 @@ services:
       - web
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - "/mnt/media/traefik/letsencrypt:/letsencrypt"
+      - "/media/traefik/letsencrypt:/letsencrypt"
     command:
       - --log.level=DEBUG
       - --accesslog=true
@@ -44,7 +44,7 @@ services:
       - traefik.http.middlewares.passredirect.redirectregex.replacement=https://$${1}
       - traefik.http.routers.pass.middlewares=passredirect
     volumes:
-      - /mnt/media/vaultwarden/data/:/data
+      - /media/vaultwarden/data/:/data
   gotosocial:
     image: superseriousbusiness/gotosocial:latest
     container_name: gotosocial
@@ -60,13 +60,12 @@ services:
       TZ: America/Halifax
 
     volumes:
-      - /mnt/media/gotosocial/data:/gotosocial/storage
+      - /media/gotosocial/data:/gotosocial/storage
     restart: "always"
     labels:
       - traefik.enable=true
       - traefik.http.routers.social.rule=Host(`social.openbracket.ca`)
       - traefik.http.services.social.loadbalancer.server.port=8080
-
       - traefik.http.middlewares.socialredirect.redirectregex.regex=^https://www\.(.*)
       - traefik.http.middlewares.socialredirect.redirectregex.replacement=https://$${1}
       - traefik.http.routers.social.middlewares=socialredirect
