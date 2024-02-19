@@ -45,30 +45,6 @@ services:
       - traefik.http.routers.pass.middlewares=passredirect
     volumes:
       - /media/vaultwarden/data/:/data
-  gotosocial:
-    image: superseriousbusiness/gotosocial:latest
-    container_name: gotosocial
-    user: 1000:1000
-    networks:
-      - web
-    environment:
-      GTS_HOST: social.openbracket.ca
-      GTS_DB_TYPE: sqlite
-      GTS_DB_ADDRESS: /gotosocial/storage/sqlite.db
-      GTS_LETSENCRYPT_ENABLED: "false"
-      GTS_LETSENCRYPT_EMAIL_ADDRESS: ""
-      TZ: America/Halifax
-
-    volumes:
-      - /media/gotosocial/data:/gotosocial/storage
-    restart: "always"
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.social.rule=Host(`social.openbracket.ca`)
-      - traefik.http.services.social.loadbalancer.server.port=8080
-      - traefik.http.middlewares.socialredirect.redirectregex.regex=^https://www\.(.*)
-      - traefik.http.middlewares.socialredirect.redirectregex.replacement=https://$${1}
-      - traefik.http.routers.social.middlewares=socialredirect
 networks:
   web:
     name: web
