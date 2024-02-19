@@ -7,7 +7,6 @@ services:
       - 80:80
       - 443:443
       - 23:23
-      - 5001:5001
     networks:
       - web
     volumes:
@@ -34,12 +33,11 @@ services:
     networks:
       - web
     environment:
-      - "SIGNUPS_ALLOWED=false"
+      - "SIGNUPS_ALLOWED=true"
     labels:
       - traefik.enable=true
       - traefik.http.routers.pass.rule=Host(`pass.openbracket.ca`)
       - traefik.http.services.pass.loadbalancer.server.port=80
-
       - traefik.http.middlewares.passredirect.redirectregex.regex=^https://www\.(.*)
       - traefik.http.middlewares.passredirect.redirectregex.replacement=https://$${1}
       - traefik.http.routers.pass.middlewares=passredirect
