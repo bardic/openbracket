@@ -7,7 +7,6 @@ services:
       - 80:80
       - 443:443
       - 23:23
-      - 25:25
     networks:
       - web
     volumes:
@@ -44,23 +43,42 @@ services:
       - traefik.http.routers.pass.middlewares=passredirect
     volumes:
       - /media/vaultwarden/data/:/data
-  chasquid:
-    image: registry.gitlab.com/albertito/chasquid:main
-    networks:
-      - web
+  ghost:
+    image: ghost:5-alpine
+    restart: always
+    ports:
+      - 8080:2368
     environment:
-      - "AUTO_CERTS=mail.openbracket.ca"
+      # see https://ghost.org/docs/config/#configuration-options
+      database__client: mysql
+      database__connection__host: db
+      database__connection__user: root
+      database__connection__password: example
+      database__connection__database: ghost
+      # this url value is just an example, and is likely wrong for your environment!
+      url: https://openbracket.ca
+      # contrary to the default mentioned in the linked documentation, this image defaults to NODE_ENV=production (so development mode needs to be explicitly specified if desired)
+      #NODE_ENV: development
     labels:
       - traefik.enable=true
-      - traefik.http.routers.mail.rule=Host(`mail.openbracket.ca`)
-      - traefik.http.services.mail.loadbalancer.server.port=25
-      - traefik.http.middlewares.mailredirect.redirectregex.replacement=https://$${1}
-      - traefik.http.middlewares.mailredirect.redirectregex.regex=^https://www\.(.*)
-      - traefik.http.routers.mail.middlewares=mailredirect
+      - traefik.http.routers.blog.rule=Host(`blog.openbracket.ca`)
+      - traefik.http.services.blog.loadbalancer.server.port=80
+      - traefik.http.middlewares.blogredirect.redirectregex.regex=^https://www\.(.*)
+      - traefik.http.middlewares.blogredirect.redirectregex.replacement=https://$${1}
+      - traefik.http.routers.blog.middlewares=blogredirect
     volumes:
-      - chasquid-data:/data
+      - ghost:/var/lib/ghost/content
+  db:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: example
+    volumes:
+      - db:/var/lib/mysql
+
+volumes:
+  ghost:
+  db:
 networks:
   web:
     name: web
-volumes:
-  chasquid-data:
