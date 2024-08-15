@@ -7,6 +7,7 @@ services:
       - 80:80
       - 443:443
       - 23:23
+      - 25:25
     networks:
       - web
     volumes:
@@ -43,12 +44,21 @@ services:
       - traefik.http.routers.pass.middlewares=passredirect
     volumes:
       - /media/vaultwarden/data/:/data
+  chasquid:
+    image: registry.gitlab.com/albertito/chasquid:main
+    networks:
+      - web
+    environment:
+      - "AUTO_CERTS=mail.openbracket.ca"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.mail.rule=Host(`mail.openbracket.ca`)
+      - traefik.http.services.mail.loadbalancer.server.port=25
+      - traefik.http.middlewares.mailredirect.redirectregex.replacement=https://$${1}
+      - traefik.http.middlewares.mailredirect.redirectregex.regex=^https://www\.(.*)
+      - traefik.http.routers.mail.middlewares=mailredirect
+    volumes:
+      - chasquid-data:/data
 networks:
   web:
     name: web
-
-
-
-
-
-    
