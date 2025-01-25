@@ -1,5 +1,4 @@
 version: '3.9'
-
 services:
   traefik:
     image: traefik:v3.0
@@ -23,20 +22,20 @@ services:
       - --entrypoints.websecure.address=:443
       - --entrypoints.websecure.asDefault=true
       - --entrypoints.websecure.http.tls.certresolver=obresolver
-      - --certificatesresolvers.obresolver.acme.email=bardic.knowledge@gmail.com
+      - --certificatesresolvers.obresolver.acme.email=${EMAIL}
       - --certificatesresolvers.obresolver.acme.tlschallenge=true
       - --certificatesresolvers.obresolver.acme.storage=/letsencrypt/acme.json
   bitwarden:
-    image: vaultwarden/server:1.30.1-alpine
+    image: vaultwarden/server:latest-alpine
     security_opt:
       - no-new-privileges:true
     networks:
       - web
     environment:
-      - "SIGNUPS_ALLOWED=true"
+      - "SIGNUPS_ALLOWED=false"
     labels:
       - traefik.enable=true
-      - traefik.http.routers.pass.rule=Host(`pass.openbracket.ca`)
+      - traefik.http.routers.pass.rule=Host(`${PASSWORD_URL}`)
       - traefik.http.services.pass.loadbalancer.server.port=80
       - traefik.http.middlewares.passredirect.redirectregex.regex=^https://www\.(.*)
       - traefik.http.middlewares.passredirect.redirectregex.replacement=https://$${1}
@@ -49,38 +48,131 @@ services:
     networks:
       - web
     environment:
-      # see https://ghost.org/docs/config/#configuration-options
-      database__client: mysql
-      database__connection__host: db
-      database__connection__user: root
-      database__connection__password: example
-      database__connection__database: ghost
-      # this url value is just an example, and is likely wrong for your environment!
-      url: https://openbracket.ca
-      # contrary to the default mentioned in the linked documentation, this image defaults to NODE_ENV=production (so development mode needs to be explicitly specified if desired)
-      #NODE_ENV: development
+      database__client: ${BLOG_DB_CLIENT}
+      database__connection__host: ${BLOG_DB_HOST}
+      database__connection__user: ${BLOG_DB_USER}
+      database__connection__password: ${BLOG_DB_PASS}
+      database__connection__database: ${BLOG_DB_HOST}
+      url: https://${BLOG_URL}
     labels:
       - traefik.enable=true
-      - traefik.http.routers.blog.rule=Host(`openbracket.ca`)
-      - traefik.http.services.blog.loadbalancer.server.port=80
+      - traefik.http.routers.blog.rule=Host(`${BLOG_URL}`)
+      - traefik.http.services.blog.loadbalancer.server.port=2368
       - traefik.http.middlewares.blogredirect.redirectregex.regex=^https://www\.(.*)
       - traefik.http.middlewares.blogredirect.redirectregex.replacement=https://$${1}
       - traefik.http.routers.blog.middlewares=blogredirect
     volumes:
-      - ghost:/var/lib/ghost/content
+      - /media/ghost/content/:/var/lib/ghost/content
   db:
     image: mysql:8.0
     restart: always
     networks:
       - web
     environment:
-      MYSQL_ROOT_PASSWORD: example
+      MYSQL_ROOT_PASSWORD: ${BLOG_DB_PASS}
     volumes:
-      - db:/var/lib/mysql
+      - /media/ghost/db:/var/lib/mysql
+  watchtower:
+    image: containrrr/watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 30
+  shiori:
+    image: ghcr.io/go-shiori/shiori
+    networks:
+      - web
+    volumes:
+      - /media/shiori/data/:/shiori
+    environment:
+      SHIORI_HTTP_PORT: 8081
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.bookmarks.rule=Host(`${BOOKMARKS_URL}`)
+      - traefik.http.services.bookmarks.loadbalancer.server.port=8081
+      - traefik.http.middlewares.bookmarksredirect.redirectregex.regex=^https://www\.(.*)
+      - traefik.http.middlewares.bookmarksredirect.redirectregex.replacement=https://$${1}
+      - traefik.http.routers.bookmarks.middlewares=bookmarksredirect
+  gotosocial:
+    image: superseriousbusiness/gotosocial:latest
+    command: ["--config-path", "/gotosocial/config.yaml"]
+    volumes:
+      - type: bind
+        source: ./config.yaml
+        target: /gotosocial/config.yaml
+        read_only: true
+      - /media/gotosocial/data:/gotosocial/storage
+    container_name: gotosocial
+    user: 0:0
+    networks:
+      - web
+    environment:
+      GTS_HOST: ${SOCIAL_URL}
+      GTS_DB_TYPE: sqlite
+      GTS_DB_ADDRESS: /gotosocial/storage/sqlite.db
+      GTS_LETSENCRYPT_ENABLED: "false"
+      GTS_LETSENCRYPT_EMAIL_ADDRESS: ""
+      TZ: ${TZ}
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.social.rule=Host(`${SOCIAL_URL}`)
+      - traefik.http.services.social.loadbalancer.server.port=8080
+      - traefik.http.middlewares.socialredirect.redirectregex.regex=^https://www\.(.*)
+      - traefik.http.middlewares.socialredirect.redirectregex.replacement=https://$${1}
+      - traefik.http.routers.social.middlewares=socialredirect
+    restart: "always"
+  pkm:
+    image: b3log/siyuan
+    command: ['--workspace=/siyuan/workspace/', '--accessAuthCode=${PKM_AUTH}']
+    networks:
+      - web
+    volumes:
+      - /media/pkm:/siyuan/workspace
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.notes.rule=Host(`${PKM_URL}`)
+      - traefik.http.services.notes.loadbalancer.server.port=6806
+      - traefik.http.middlewares.notesredirect.redirectregex.regex=^https://www\.(.*)
+      - traefik.http.middlewares.notesredirect.redirectregex.replacement=https://$${1}
+      - traefik.http.routers.notes.middlewares=notesredirect
+  miniflux:
+    image: miniflux/miniflux:latest
+    networks:
+      - web
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.rss.rule=Host(`${RSS_URL}`)
+      - traefik.http.services.rss.loadbalancer.server.port=8082
+      - traefik.http.middlewares.rssredirect.redirectregex.regex=^https://www\.(.*)
+      - traefik.http.middlewares.rssredirect.redirectregex.replacement=https://$${1}
+      - traefik.http.routers.rss.middlewares=rssredirect
+    depends_on:
+      minifluxdb2:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgres://miniflux:secret@minifluxdb2/miniflux?sslmode=disable
+      - RUN_MIGRATIONS=1
+      - CREATE_ADMIN=1
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=test123
+      - PORT=8082
+  minifluxdb2:
+    image: postgres:17-alpine
+    networks:
+      - web
+    environment:
+      - POSTGRES_USER=miniflux
+      - POSTGRES_PASSWORD=secret
+      - POSTGRES_DB=miniflux
+    volumes:
+      - /media/minifluxdb:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "miniflux"]
+      interval: 10s
+      start_period: 30s
 
-volumes:
-  ghost:
-  db:
 networks:
   web:
     name: web
